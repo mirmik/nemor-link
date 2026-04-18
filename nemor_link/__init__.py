@@ -1,8 +1,8 @@
-"""nemor-link — unified client for local LLM/STT/TTS services.
+"""nemor-link — unified client for local LLM/STT/TTS profiles.
 
 Quick start:
     import nemor_link as nl
-    llm = nl.llm()                     # default LLM
+    llm = nl.llm()                     # default LLM profile
     print(llm.chat([{"role": "user", "content": "hi"}])["choices"][0]["message"]["content"])
 
     for token in llm.chat_stream([{"role": "user", "content": "hi"}]):
@@ -15,7 +15,7 @@ Quick start:
     audio = tts.synthesize("hello")
 """
 
-from nemor_link.config import ConfigError, load, resolve_service
+from nemor_link.config import ConfigError, load, resolve_profile
 from nemor_link.llm import LLMClient, LLMError
 from nemor_link.stt import STTClient, STTError
 from nemor_link.tts import TTSClient, TTSError
@@ -43,12 +43,12 @@ def load_config(path=None):
 
 def _build(kind, name=None, tool=None, monitor=False, config=None, **client_kwargs):
     cfg = config or load()
-    svc = resolve_service(cfg, name=name, kind=kind, tool=tool)
-    return _KIND_TO_CLIENT[kind](svc, monitor=monitor, **client_kwargs)
+    prof = resolve_profile(cfg, name=name, kind=kind, tool=tool)
+    return _KIND_TO_CLIENT[kind](prof, monitor=monitor, **client_kwargs)
 
 
 def llm(name=None, tool=None, monitor=False, config=None, **kwargs):
-    """Return an LLMClient for the named service (or default)."""
+    """Return an LLMClient for the named profile (or default)."""
     return _build("llm", name=name, tool=tool, monitor=monitor, config=config, **kwargs)
 
 
@@ -63,27 +63,27 @@ def tts(name=None, tool=None, monitor=False, config=None, **kwargs):
 
 
 def probe(config=None, kind=None):
-    """Probe every service (optionally filtered by kind). Returns a dict:
+    """Probe every profile (optionally filtered by kind). Returns a dict:
 
-        {service_name: {
+        {profile_name: {
             "kind": ..., "active": url,
-            "urls": [{"url": ..., "ok": bool, "latency_ms": float}, ...]
+            "backends": [{url, model, auth, ok, latency_ms}, ...]
         }}
     """
     cfg = config or load()
     report = {}
-    for name, svc in cfg["services"].items():
-        if kind and svc["kind"] != kind:
+    for name, prof in cfg["profiles"].items():
+        if kind and prof["kind"] != kind:
             continue
-        resolved = resolve_service(cfg, name=name)
-        client = _KIND_TO_CLIENT[svc["kind"]](resolved)
+        resolved = resolve_profile(cfg, name=name)
+        client = _KIND_TO_CLIENT[prof["kind"]](resolved)
         try:
             results = client.pool.probe_all()
         finally:
             client.close()
         by_url = {b["url"]: b for b in resolved["backends"]}
         report[name] = {
-            "kind": svc["kind"],
+            "kind": prof["kind"],
             "active": client.pool.active_url(),
             "backends": [
                 {

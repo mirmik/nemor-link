@@ -10,11 +10,11 @@ from nemor_link import llm as _llm, probe as _probe
 
 def cmd_list(args):
     cfg = _config.load(args.config)
-    for name, svc in cfg["services"].items():
-        is_default = cfg["defaults"].get(svc["kind"]) == name
+    for name, prof in cfg["profiles"].items():
+        is_default = cfg["defaults"].get(prof["kind"]) == name
         tag = " (default)" if is_default else ""
-        print(f"[{svc['kind']:3s}] {name}{tag}")
-        for i, b in enumerate(svc["backends"]):
+        print(f"[{prof['kind']:3s}] {name}{tag}")
+        for i, b in enumerate(prof["backends"]):
             arrow = "*" if i == 0 else " "
             parts = [b["url"]]
             if b.get("model"):
@@ -60,12 +60,12 @@ def cmd_test(args):
 def cmd_set_default(args):
     import os
     cfg = _config.load(args.config)
-    if args.name not in cfg["services"]:
-        print(f"unknown service {args.name!r}", file=sys.stderr)
+    if args.name not in cfg["profiles"]:
+        print(f"unknown profile {args.name!r}", file=sys.stderr)
         sys.exit(1)
-    if cfg["services"][args.name]["kind"] != args.kind:
+    if cfg["profiles"][args.name]["kind"] != args.kind:
         print(
-            f"service {args.name!r} has kind={cfg['services'][args.name]['kind']!r}, "
+            f"profile {args.name!r} has kind={cfg['profiles'][args.name]['kind']!r}, "
             f"not {args.kind!r}",
             file=sys.stderr,
         )
@@ -86,16 +86,16 @@ def build_parser():
     p.add_argument("-c", "--config", help="Path to config (default: ~/.config/llm.json)")
     sub = p.add_subparsers(dest="command", required=True)
 
-    s_list = sub.add_parser("list", help="List all configured services")
+    s_list = sub.add_parser("list", help="List all configured profiles")
     s_list.set_defaults(func=cmd_list)
 
-    s_probe = sub.add_parser("probe", help="Probe availability of all services")
+    s_probe = sub.add_parser("probe", help="Probe availability of all profiles")
     s_probe.add_argument("--kind", choices=["llm", "stt", "tts"], help="Filter by kind")
     s_probe.add_argument("--json", action="store_true", help="JSON output")
     s_probe.set_defaults(func=cmd_probe)
 
-    s_test = sub.add_parser("test", help="Send a test prompt to an LLM service")
-    s_test.add_argument("name", nargs="?", help="Service name (default LLM if omitted)")
+    s_test = sub.add_parser("test", help="Send a test prompt to an LLM profile")
+    s_test.add_argument("name", nargs="?", help="Profile name (default LLM if omitted)")
     s_test.add_argument("-p", "--prompt", default="Say hi in one short sentence.")
     s_test.add_argument("--max-tokens", type=int, default=200)
     s_test.add_argument("--temperature", type=float, default=0.3)
