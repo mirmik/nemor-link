@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nemor-link"
+version = "0.1.0"
+description = "Unified client for local LLM/STT/TTS services (Nemor ecosystem)"
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.28",
+]
+
+[project.scripts]
+nemor-link = "nemor_link.cli:main"
+
+[tool.setuptools]
+packages = ["nemor_link"]
