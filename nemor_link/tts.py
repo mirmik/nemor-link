@@ -3,6 +3,7 @@
 import requests
 
 from nemor_link.base import ServiceClient
+from nemor_link.tls import prepare_session_for_backend
 
 
 class TTSClient(ServiceClient):
@@ -41,11 +42,13 @@ class TTSClient(ServiceClient):
         for backend in self.pool.failover_candidates():
             headers = {"Content-Type": "application/json", **self.auth_headers(backend)}
             try:
+                request_kwargs = prepare_session_for_backend(self._session, backend)
                 resp = self._session.post(
                     self._endpoint(backend["url"]),
                     json=payload,
                     headers=headers,
                     timeout=timeout or self.timeout,
+                    **request_kwargs,
                 )
                 self.pool._mark(backend["url"], resp.status_code < 500)
                 if resp.status_code >= 400:

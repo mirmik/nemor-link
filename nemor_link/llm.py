@@ -5,6 +5,7 @@ import json
 import requests
 
 from nemor_link.base import ServiceClient
+from nemor_link.tls import prepare_session_for_backend
 
 
 class LLMClient(ServiceClient):
@@ -44,11 +45,13 @@ class LLMClient(ServiceClient):
             payload["stream"] = False
             headers = {"Content-Type": "application/json", **self.auth_headers(backend)}
             try:
+                request_kwargs = prepare_session_for_backend(self._session, backend)
                 resp = self._session.post(
                     self._endpoint(backend["url"]),
                     json=payload,
                     headers=headers,
                     timeout=self.timeout,
+                    **request_kwargs,
                 )
                 self.pool._mark(backend["url"], resp.status_code < 500)
                 if resp.status_code >= 400:
@@ -70,12 +73,14 @@ class LLMClient(ServiceClient):
             payload["stream"] = True
             headers = {"Content-Type": "application/json", **self.auth_headers(backend)}
             try:
+                request_kwargs = prepare_session_for_backend(self._session, backend)
                 with self._session.post(
                     self._endpoint(backend["url"]),
                     json=payload,
                     headers=headers,
                     stream=True,
                     timeout=self.timeout,
+                    **request_kwargs,
                 ) as resp:
                     self.pool._mark(backend["url"], resp.status_code < 500)
                     if resp.status_code >= 400:

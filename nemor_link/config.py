@@ -3,6 +3,8 @@
 import json
 import os
 
+from nemor_link.tls import normalize_fingerprint
+
 
 CONFIG_PATH = os.path.expanduser("~/.config/llm.json")
 VALID_KINDS = {"llm", "stt", "tts"}
@@ -82,6 +84,14 @@ def load(path=None):
                     f"profile {name!r}.backends[{i}] references unknown host {auth_name!r}; "
                     f"available: {sorted(hosts)}"
                 )
+            fingerprint = b.get("tls_fingerprint") or b.get("server_fingerprint")
+            if fingerprint:
+                try:
+                    normalize_fingerprint(fingerprint)
+                except ValueError as exc:
+                    raise ConfigError(
+                        f"profile {name!r}.backends[{i}]: {exc}"
+                    ) from exc
 
     for kind, default_name in defaults.items():
         if kind not in VALID_KINDS:

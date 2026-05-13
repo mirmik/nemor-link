@@ -5,6 +5,7 @@ import os
 import requests
 
 from nemor_link.base import ServiceClient
+from nemor_link.tls import prepare_session_for_backend
 
 
 class STTClient(ServiceClient):
@@ -49,11 +50,13 @@ class STTClient(ServiceClient):
             auth = self.auth_headers(backend)
             hdr = {**headers, **auth}
             try:
+                request_kwargs = prepare_session_for_backend(self._session, backend)
                 resp = self._session.post(
                     self._endpoint(backend["url"]),
                     data=body,
                     headers=hdr,
                     timeout=timeout or self.timeout,
+                    **request_kwargs,
                 )
                 self.pool._mark(backend["url"], resp.status_code < 500)
                 if resp.status_code >= 400:

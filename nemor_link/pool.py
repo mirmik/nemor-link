@@ -11,6 +11,8 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
+from nemor_link.tls import prepare_session_for_backend
+
 
 DEFAULT_HEALTH_PATH = {
     "llm": "/health",
@@ -63,7 +65,14 @@ class ServicePool:
         """Single probe. Returns (ok: bool, latency_sec: float)."""
         started = time.perf_counter()
         try:
-            resp = requests.get(self.health_url(url), timeout=self.health_timeout)
+            backend = self._by_url[url]
+            session = requests.Session()
+            request_kwargs = prepare_session_for_backend(session, backend)
+            resp = session.get(
+                self.health_url(url),
+                timeout=self.health_timeout,
+                **request_kwargs,
+            )
             ok = resp.status_code < 500  # 401 (auth gate) also counts as alive
         except requests.RequestException:
             ok = False
