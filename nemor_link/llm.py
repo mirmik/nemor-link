@@ -57,7 +57,7 @@ class LLMClient(ServiceClient):
                 if resp.status_code >= 400:
                     raise LLMError(
                         f"{backend['url']} ({backend['model']}) returned "
-                        f"{resp.status_code}: {resp.text[:300]}"
+                        f"{resp.status_code}: {resp.text}"
                     )
                 return resp.json()
             except (requests.RequestException, LLMError) as e:
@@ -86,7 +86,7 @@ class LLMClient(ServiceClient):
                     if resp.status_code >= 400:
                         raise LLMError(
                             f"{backend['url']} ({backend['model']}) returned "
-                            f"{resp.status_code}: {resp.text[:300]}"
+                            f"{resp.status_code}: {resp.text}"
                         )
                     yield from _parse_sse(resp)
                 return
