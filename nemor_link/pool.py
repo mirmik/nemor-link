@@ -16,7 +16,7 @@ from nemor_link.tls import prepare_session_for_backend
 
 DEFAULT_HEALTH_PATH = {
     "llm": "/health",
-    "stt": "/health",
+    "stt": "/stt/health",
     "tts": "/health",
 }
 
@@ -38,6 +38,7 @@ class ServicePool:
         health_path=None,
         health_timeout=0.6,
         check_interval=2.0,
+        health_headers=None,
     ):
         if not backends:
             raise ValueError(f"ServicePool {name!r} needs at least one backend")
@@ -51,6 +52,7 @@ class ServicePool:
         self.health_path = health_path or DEFAULT_HEALTH_PATH.get(kind, "/health")
         self.health_timeout = float(health_timeout)
         self.check_interval = float(check_interval)
+        self.health_headers = health_headers
 
         self._lock = threading.Lock()
         self._healthy = {u: None for u in self.urls}
@@ -70,6 +72,7 @@ class ServicePool:
             request_kwargs = prepare_session_for_backend(session, backend)
             resp = session.get(
                 self.health_url(url),
+                headers=self.health_headers(backend) if self.health_headers else None,
                 timeout=self.health_timeout,
                 **request_kwargs,
             )
