@@ -20,6 +20,7 @@ class ServiceClient:
             kind=self.kind,
             health_timeout=health_timeout,
             check_interval=check_interval,
+            health_headers=self.health_headers,
         )
         if monitor:
             self.pool.start_monitor()
@@ -33,6 +34,10 @@ class ServiceClient:
         if host.get("host_id"):
             headers["X-LLM-Proxy-Host-ID"] = host["host_id"]
         return headers
+
+    def health_headers(self, backend):
+        """Return headers used to probe a backend's health endpoint."""
+        return self.auth_headers(backend)
 
     def close(self):
         self.pool.stop_monitor()

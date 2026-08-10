@@ -16,12 +16,21 @@ class STTClient(ServiceClient):
     """
 
     def __init__(self, service, timeout=120.0, **pool_kwargs):
+        self.runtime = service.get("runtime")
         super().__init__(service, **pool_kwargs)
         if self.kind != "stt":
             raise ValueError(f"STTClient requires kind=stt, got {self.kind!r}")
         self.timeout = timeout
         self._session = requests.Session()
         self.default_prompt = service.get("initial_prompt")
+
+    def runtime_headers(self):
+        if not self.runtime:
+            return {}
+        return {"X-STT-Runtime": self.runtime}
+
+    def health_headers(self, backend):
+        return {**self.runtime_headers(), **self.auth_headers(backend)}
 
     def _endpoint(self, base_url):
         # URLs in config may already include /stt suffix; if not, add it.
@@ -41,6 +50,7 @@ class STTClient(ServiceClient):
             raise TypeError(f"audio must be bytes, path, or file-like, got {type(audio)}")
 
         headers = {"Content-Type": "application/octet-stream"}
+        headers.update(self.runtime_headers())
         prompt = initial_prompt if initial_prompt is not None else self.default_prompt
         if prompt:
             headers["X-Initial-Prompt"] = prompt
