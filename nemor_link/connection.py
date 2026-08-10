@@ -57,7 +57,7 @@ def normalize_server_url(address):
     return urlunsplit((parsed.scheme, f"{host}:{port}", "", "", ""))
 
 
-def inspect_server(address, timeout=5.0):
+def inspect_server(address, timeout=10.0):
     """Observe identity and public capabilities without changing local trust."""
     endpoint = normalize_server_url(address)
     parsed = urlsplit(endpoint)
@@ -303,10 +303,30 @@ def _certificate_fingerprint(host, port, timeout):
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
     try:
-        with socket.create_connection((host, port), timeout=timeout) as raw:
+        raw = socket.create_connection((host, port), timeout=timeout)
+    except socket.timeout as exc:
+        raise ServerUnavailable(
+            f"TCP connection to {host}:{port} timed out"
+        ) from exc
+    except OSError as exc:
+        raise ServerUnavailable(
+            f"Cannot open TCP connection to {host}:{port}: {exc}"
+        ) from exc
+    try:
+        with raw:
             with context.wrap_socket(raw, server_hostname=host) as secure:
                 certificate = secure.getpeercert(binary_form=True)
+    except socket.timeout as exc:
+        raise ServerUnavailable(
+            f"TLS handshake with {host}:{port} timed out"
+        ) from exc
+    except ssl.SSLError as exc:
+        raise ServerUnavailable(
+            f"TLS handshake with {host}:{port} failed: {exc}"
+        ) from exc
     except OSError as exc:
-        raise ServerUnavailable(f"Cannot establish TLS connection to {host}:{port}: {exc}") from exc
+        raise ServerUnavailable(
+            f"TLS connection to {host}:{port} failed: {exc}"
+        ) from exc
     digest = hashlib.sha256(certificate).hexdigest()
     return normalize_fingerprint(digest)

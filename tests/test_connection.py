@@ -3,6 +3,7 @@
 import os
 import tempfile
 import unittest
+import socket
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -16,6 +17,7 @@ from nemor_link.connection import (
     server_key,
     set_model,
     trust_server,
+    _certificate_fingerprint,
 )
 from nemor_link.state import StateStore
 
@@ -95,6 +97,11 @@ class ConnectionTests(unittest.TestCase):
             set_model("good", store=self.store, command="commit")
         key = self.store.load()["active_server"]
         self.assertEqual(self.store.load()["servers"][key]["selections"]["llm"], "good")
+
+    def test_tcp_timeout_is_distinguished_from_tls_timeout(self):
+        with patch("nemor_link.connection.socket.create_connection", side_effect=socket.timeout):
+            with self.assertRaisesRegex(Exception, r"TCP connection .* timed out"):
+                _certificate_fingerprint("192.168.0.61", 8090, 1)
 
 
 def _args(**overrides):
