@@ -6,6 +6,15 @@ import sys
 
 from nemor_link import config as _config
 from nemor_link import llm as _llm, probe as _probe
+from nemor_link.connection import (
+    LinkError,
+    active_record,
+    connect_interactive,
+    disconnect,
+    list_models,
+    set_model,
+    set_token,
+)
 
 
 def cmd_list(args):
@@ -81,10 +90,65 @@ def cmd_set_default(args):
     print(f"defaults.{args.kind} = {args.name}")
 
 
+def cmd_connect(args):
+    connect_interactive(args.address)
+
+
+def cmd_status(_args):
+    _key, record = active_record()
+    print("Server: " + record["endpoints"][-1])
+    print("LLM model: " + ((record.get("selections") or {}).get("llm") or "not selected"))
+
+
+def cmd_disconnect(_args):
+    disconnect()
+    print("Disconnected.")
+
+
+def cmd_list_models(_args):
+    _key, record = active_record()
+    selected = (record.get("selections") or {}).get("llm")
+    for item in list_models():
+        marker = "*" if item.get("id") == selected else " "
+        status = f" ({item['status']})" if item.get("status") else ""
+        print(f"{marker} {item.get('id')}{status}")
+
+
+def cmd_set_model(args):
+    set_model(args.model)
+    print(f"Selected LLM model: {args.model}")
+
+
+def cmd_set_token(args):
+    set_token(args.token)
+    print("Server token updated.")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="nemor-link")
     p.add_argument("-c", "--config", help="Path to config (default: ~/.config/llm.json)")
     sub = p.add_subparsers(dest="command", required=True)
+
+    s_connect = sub.add_parser("connect", help="Trust and use a Nemor server")
+    s_connect.add_argument("address")
+    s_connect.set_defaults(func=cmd_connect)
+
+    s_status = sub.add_parser("status", help="Show the active server")
+    s_status.set_defaults(func=cmd_status)
+
+    s_disconnect = sub.add_parser("disconnect", help="Disconnect the active server")
+    s_disconnect.set_defaults(func=cmd_disconnect)
+
+    s_models = sub.add_parser("list-models", help="List LLM models")
+    s_models.set_defaults(func=cmd_list_models)
+
+    s_model = sub.add_parser("set-model", help="Select the LLM model")
+    s_model.add_argument("model")
+    s_model.set_defaults(func=cmd_set_model)
+
+    s_token = sub.add_parser("set-token", help="Set the server access token")
+    s_token.add_argument("token")
+    s_token.set_defaults(func=cmd_set_token)
 
     s_list = sub.add_parser("list", help="List all configured profiles")
     s_list.set_defaults(func=cmd_list)
@@ -115,8 +179,8 @@ def main():
     args = parser.parse_args()
     try:
         args.func(args)
-    except _config.ConfigError as e:
-        print(f"Config error: {e}", file=sys.stderr)
+    except (_config.ConfigError, LinkError) as e:
+        print(str(e), file=sys.stderr)
         sys.exit(2)
 
 

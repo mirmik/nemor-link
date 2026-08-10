@@ -1,4 +1,4 @@
-"""nemor-link — unified client for local LLM/STT/TTS profiles.
+"""nemor-link — trusted connection to local LLM/STT/TTS services.
 
 Quick start:
     import nemor_link as nl
@@ -20,12 +20,25 @@ from nemor_link.llm import LLMClient, LLMError
 from nemor_link.stt import STTClient, STTError
 from nemor_link.tts import TTSClient, TTSError
 from nemor_link.pool import ServicePool
+from nemor_link.connection import (
+    AuthenticationRequired,
+    LinkError,
+    ModelNotSelected,
+    NotConnected,
+    ServerIdentityChanged,
+    ServerUnavailable,
+    add_connection_arguments,
+    handle_connection_action,
+)
 
 
 __all__ = [
     "llm", "stt", "tts", "probe",
     "LLMClient", "STTClient", "TTSClient", "ServicePool",
-    "ConfigError", "LLMError", "STTError", "TTSError",
+    "ConfigError", "LinkError", "NotConnected", "ModelNotSelected",
+    "AuthenticationRequired", "ServerIdentityChanged", "ServerUnavailable",
+    "LLMError", "STTError", "TTSError",
+    "add_connection_arguments", "handle_connection_action",
     "load_config",
 ]
 
@@ -42,8 +55,12 @@ def load_config(path=None):
 
 
 def _build(kind, name=None, tool=None, monitor=False, config=None, **client_kwargs):
-    cfg = config or load()
-    prof = resolve_profile(cfg, name=name, kind=kind, tool=tool)
+    if config is not None or name is not None:
+        cfg = config or load()
+        prof = resolve_profile(cfg, name=name, kind=kind, tool=tool)
+    else:
+        from nemor_link.connection import resolved_service
+        prof = resolved_service(kind, command=tool)
     return _KIND_TO_CLIENT[kind](prof, monitor=monitor, **client_kwargs)
 
 
