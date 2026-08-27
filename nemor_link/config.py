@@ -78,6 +78,14 @@ def load(path=None):
                 raise ConfigError(
                     f"profile {name!r}.backends[{i}]: 'model' is required for kind=llm"
                 )
+            runtime = b.get("runtime")
+            if runtime is not None and (
+                kind != "stt" or not isinstance(runtime, str) or not runtime.strip()
+            ):
+                raise ConfigError(
+                    f"profile {name!r}.backends[{i}]: 'runtime' must be a "
+                    "non-empty string and is only valid for kind=stt"
+                )
             auth_name = b.get("auth")
             if auth_name and auth_name not in hosts:
                 raise ConfigError(
