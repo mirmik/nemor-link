@@ -12,9 +12,11 @@ from nemor_link.connection import (
     connect_interactive,
     disconnect,
     list_models,
+    resolved_service,
     set_model,
     set_token,
 )
+from nemor_link.runner import run_command
 
 
 def cmd_list(args):
@@ -124,6 +126,11 @@ def cmd_set_token(args):
     print("Server token updated.")
 
 
+def cmd_run(args):
+    service = resolved_service("llm", command=args.app)
+    return run_command(args.command_args, service)
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="nemor-link")
     p.add_argument("-c", "--config", help="Path to config (default: ~/.config/llm.json)")
@@ -150,6 +157,12 @@ def build_parser():
     s_token = sub.add_parser("set-token", help="Set the server access token")
     s_token.add_argument("token")
     s_token.set_defaults(func=cmd_set_token)
+
+    s_run = sub.add_parser(
+        "run", help="Run a command through the trusted LLM connection"
+    )
+    s_run.add_argument("command_args", nargs=argparse.REMAINDER)
+    s_run.set_defaults(func=cmd_run)
 
     s_list = sub.add_parser("list", help="List all configured profiles")
     s_list.set_defaults(func=cmd_list)
@@ -179,7 +192,9 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
     try:
-        args.func(args)
+        result = args.func(args)
+        if isinstance(result, int):
+            sys.exit(result)
     except (_config.ConfigError, LinkError) as e:
         print(str(e), file=sys.stderr)
         sys.exit(2)
