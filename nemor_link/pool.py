@@ -21,6 +21,19 @@ DEFAULT_HEALTH_PATH = {
 }
 
 
+def backend_headers(backend, kind=None):
+    """Build headers shared by health probes and service requests."""
+    headers = {}
+    host = backend.get("_host")
+    if host and host.get("token"):
+        headers["Authorization"] = f"Bearer {host['token']}"
+        if host.get("host_id"):
+            headers["X-LLM-Proxy-Host-ID"] = host["host_id"]
+    if kind == "stt" and backend.get("runtime"):
+        headers["X-STT-Runtime"] = backend["runtime"]
+    return headers
+
+
 def derive_health_url(url, health_path="/health"):
     """Convert 'http://host:port/some/endpoint' → 'http://host:port{health_path}'."""
     p = urlparse(url)

@@ -1,6 +1,6 @@
 """Common base for service clients."""
 
-from nemor_link.pool import ServicePool
+from nemor_link.pool import ServicePool, backend_headers
 
 
 class ServiceClient:
@@ -27,13 +27,7 @@ class ServiceClient:
 
     def auth_headers(self, backend):
         """Return auth headers for a specific backend (uses its _host)."""
-        host = backend.get("_host")
-        if not host or not host.get("token"):
-            return {}
-        headers = {"Authorization": f"Bearer {host['token']}"}
-        if host.get("host_id"):
-            headers["X-LLM-Proxy-Host-ID"] = host["host_id"]
-        return headers
+        return backend_headers(backend, kind=self.kind)
 
     def health_headers(self, backend):
         """Return headers used to probe a backend's health endpoint."""
