@@ -3,7 +3,7 @@ import json
 from nemor_link.state import StateStore
 
 
-def test_legacy_global_preferences_are_not_assigned_to_an_application(tmp_path):
+def test_legacy_global_preferences_become_the_default(tmp_path):
     path = tmp_path / "state.json"
     path.write_text(
         json.dumps(
@@ -27,6 +27,11 @@ def test_legacy_global_preferences_are_not_assigned_to_an_application(tmp_path):
 
     assert state == {
         "version": 2,
+        "default": {
+            "server": "server",
+            "token": "secret",
+            "model": "model",
+        },
         "applications": {},
         "servers": {
             "server": {

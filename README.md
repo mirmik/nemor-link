@@ -19,21 +19,24 @@ fingerprint. Plain HTTP is available only when explicitly requested, for
 example `http://127.0.0.1:8090`, and produces a warning because it has no server
 identity.
 
-Each application has its own selected server, token, and model. Server identity
-and capability metadata are shared, but `nemor-link` has no global preferred
-host, credentials, or model. State is stored atomically in a machine-managed
-file under the platform configuration directory. The file is created with
-user-only permissions where supported.
+`nemor-link` provides a default server, token, and model. Applications use that
+default until they override individual values through their own connection
+flags. Connecting an application to another server starts an independent scope
+and does not carry credentials to the new host. Server identity and capability
+metadata remain shared. State is stored atomically in a machine-managed file
+under the platform configuration directory.
 
 The standalone commands provide the same operations:
 
 ```console
-nemor-link --app commit connect 192.168.0.90
-nemor-link --app commit status
-nemor-link --app commit list-models
-nemor-link --app commit set-model very-good-model
-nemor-link --app commit set-token TOKEN
-nemor-link --app commit disconnect
+nemor-link connect 192.168.0.90
+nemor-link set-token TOKEN
+nemor-link set-model very-good-model
+nemor-link status
+
+# Optional application override
+nemor-link --app commit set-model another-model
+nemor-link --app commit disconnect  # return to the default
 ```
 
 ## Python API

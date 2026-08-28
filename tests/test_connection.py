@@ -16,6 +16,7 @@ from nemor_link.connection import (
     resolved_service,
     server_key,
     set_model,
+    disconnect,
     trust_server,
     _certificate_fingerprint,
 )
@@ -104,6 +105,77 @@ class ConnectionTests(unittest.TestCase):
 
         with self.assertRaisesRegex(NotConnected, r"ask --connect"):
             resolved_service("llm", store=self.store, command="ask")
+
+    def test_application_uses_default_connection(self):
+        observation = self.observation()
+        trust_server(observation, store=self.store)
+        state = self.store.load()
+        state["default"].update(token="default-token", model="default-model")
+        self.store.save(state)
+
+        backend = resolved_service("llm", store=self.store, command="commit")[
+            "backends"
+        ][0]
+
+        self.assertEqual(backend["model"], "default-model")
+        self.assertEqual(backend["_host"], {"token": "default-token"})
+
+    def test_application_can_override_only_the_model(self):
+        observation = self.observation()
+        trust_server(observation, store=self.store)
+        state = self.store.load()
+        state["default"].update(token="default-token", model="default-model")
+        state["applications"]["commit"] = {"model": "commit-model"}
+        self.store.save(state)
+
+        backend = resolved_service("llm", store=self.store, command="commit")[
+            "backends"
+        ][0]
+
+        self.assertEqual(backend["model"], "commit-model")
+        self.assertEqual(backend["_host"], {"token": "default-token"})
+
+    def test_application_disconnect_returns_to_default(self):
+        observation = self.observation()
+        trust_server(observation, store=self.store)
+        state = self.store.load()
+        state["default"].update(token="default-token", model="default-model")
+        state["applications"]["commit"] = {"model": "commit-model"}
+        self.store.save(state)
+
+        disconnect(store=self.store, command="commit")
+
+        backend = resolved_service("llm", store=self.store, command="commit")[
+            "backends"
+        ][0]
+        self.assertEqual(backend["model"], "default-model")
+        self.assertNotIn("commit", self.store.load()["applications"])
+
+    def test_application_server_does_not_inherit_default_token_or_model(self):
+        default = self.observation()
+        trust_server(default, store=self.store)
+        state = self.store.load()
+        state["default"].update(token="default-token", model="default-model")
+        self.store.save(state)
+        application = {
+            **default,
+            "endpoint": "https://192.168.0.91:8090",
+            "fingerprint": "cd:" * 31 + "cd",
+            "capabilities": {
+                "protocol": 1,
+                "services": {"llm": True},
+                "auth_required": True,
+            },
+        }
+
+        trust_server(application, store=self.store, command="commit")
+
+        self.assertEqual(
+            self.store.load()["applications"]["commit"],
+            {"server": server_key(application)},
+        )
+        with self.assertRaisesRegex(AuthenticationRequired, r"commit --set-token"):
+            resolved_service("llm", store=self.store, command="commit")
 
     def test_applications_have_independent_tokens_and_models(self):
         observation = self.observation()

@@ -102,7 +102,7 @@ def cmd_status(args):
 
 def cmd_disconnect(args):
     disconnect(command=args.app)
-    print("Disconnected.")
+    print("Using default connection." if args.app else "Disconnected.")
 
 
 def cmd_list_models(args):

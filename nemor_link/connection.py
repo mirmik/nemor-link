@@ -109,9 +109,19 @@ def trust_server(observation, store=None, command=None):
         record["endpoints"].append(endpoint)
     record["capabilities"] = observation.get("capabilities") or {}
     if command:
-        application = state["applications"].get(command)
-        if not application or application.get("server") != key:
-            state["applications"][command] = {"server": key}
+        application = state["applications"].setdefault(command, {})
+        if application.get("server") != key:
+            application.clear()
+        application["server"] = key
+    else:
+        default = state["default"]
+        if default.get("server") != key:
+            default.clear()
+            for application in state["applications"].values():
+                if "server" not in application:
+                    application.pop("token", None)
+                    application.pop("model", None)
+        default["server"] = key
     store.save(state)
     return record
 
@@ -119,13 +129,11 @@ def trust_server(observation, store=None, command=None):
 def active_record(store=None, command=None):
     store = store or StateStore()
     state = store.load()
-    if not command:
-        raise LinkError("application name is required")
-    application = state["applications"].get(command) or {}
+    application = _application_config(state, command)
     key = application.get("server")
     record = state.get("servers", {}).get(key)
     if not record or not record.get("endpoints"):
-        hint = f"Run: {command} --connect <address>"
+        hint = _action_hint(command, "--connect <address>")
         raise NotConnected(f"Nemor server is not connected.\n{hint}")
     return key, record, application
 
@@ -134,7 +142,7 @@ def resolved_service(kind, store=None, command=None):
     _key, record, application = active_record(store=store, command=command)
     capabilities = record.get("capabilities") or {}
     if capabilities.get("auth_required") and not application.get("token"):
-        hint = f"Run: {command} --set-token <token>"
+        hint = _action_hint(command, "--set-token <token>")
         raise AuthenticationRequired(f"Server requires authentication.\n{hint}")
     endpoint = record["endpoints"][-1]
     backend = {"url": endpoint}
@@ -145,7 +153,7 @@ def resolved_service(kind, store=None, command=None):
     if kind == "llm":
         model = application.get("model")
         if not model:
-            hint = f"Run: {command} --list-models"
+            hint = _action_hint(command, "--list-models")
             raise ModelNotSelected(f"No LLM model selected.\n{hint}")
         backend["model"] = model
     return {"name": endpoint, "kind": kind, "backends": [backend]}
@@ -158,7 +166,7 @@ def list_models(store=None, timeout=10.0, command=None):
     try:
         payload = _get_json(backend["url"] + "/v1/models", backend, headers, timeout)
     except AuthenticationRequired:
-        hint = f"Run: {command} --set-token <token>"
+        hint = _action_hint(command, "--set-token <token>")
         raise AuthenticationRequired(f"Server requires authentication.\n{hint}")
     return payload.get("data") or []
 
@@ -171,7 +179,8 @@ def set_model(model, store=None, command=None):
         raise LinkError(f"Unknown model {model!r}. Available: {', '.join(names) or '(none)'}")
     _key, _record, _application = active_record(store=store, command=command)
     state = store.load()
-    state["applications"][command]["model"] = model
+    target = state["applications"].setdefault(command, {}) if command else state["default"]
+    target["model"] = model
     store.save(state)
 
 
@@ -179,7 +188,8 @@ def set_token(token, store=None, command=None):
     store = store or StateStore()
     _key, _record, _application = active_record(store=store, command=command)
     state = store.load()
-    state["applications"][command]["token"] = token.strip() or None
+    target = state["applications"].setdefault(command, {}) if command else state["default"]
+    target["token"] = token.strip() or None
     store.save(state)
 
 
@@ -187,14 +197,15 @@ def disconnect(store=None, command=None):
     store = store or StateStore()
     active_record(store=store, command=command)
     state = store.load()
-    state["applications"].pop(command, None)
+    if command:
+        state["applications"].pop(command, None)
+    else:
+        state["default"].clear()
     store.save(state)
 
 
 def connect_interactive(address, store=None, command=None, input_fn=input, output_fn=print):
     store = store or StateStore()
-    if not command:
-        raise LinkError("application name is required")
     observation = inspect_server(address)
     state = store.load()
     key = server_key(observation)
@@ -240,7 +251,7 @@ def handle_connection_action(args, command, store=None, input_fn=input, output_f
         return True
     if args.disconnect:
         disconnect(store=store, command=command)
-        output_fn("Disconnected.")
+        output_fn("Using default connection." if command else "Disconnected.")
         return True
     if args.link_status:
         _key, record, application = active_record(store=store, command=command)
@@ -281,6 +292,21 @@ def _backend_from_record(record):
 def _auth_headers(application):
     token = application.get("token")
     return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def _application_config(state, command):
+    default = state["default"]
+    if not command:
+        return default
+    application = state["applications"].get(command) or {}
+    if "server" in application:
+        return application
+    return {**default, **application}
+
+
+def _action_hint(command, action):
+    executable = command or "nemor-link"
+    return f"Run: {executable} {action}"
 
 
 def _get_json(url, backend, headers=None, timeout=5.0):

@@ -26,7 +26,7 @@ class StateStore:
 
     def load(self):
         if not os.path.isfile(self.path):
-            return {"version": 2, "applications": {}, "servers": {}}
+            return {"version": 2, "default": {}, "applications": {}, "servers": {}}
         try:
             with open(self.path, "r", encoding="utf-8") as stream:
                 state = json.load(stream)
@@ -34,16 +34,30 @@ class StateStore:
             raise StateError(f"Cannot read nemor-link state at {self.path}: {exc}") from exc
         if state.get("version") == 1 and isinstance(state.get("servers"), dict):
             servers = state["servers"]
+            active = state.get("active_server")
+            active_record = servers.get(active) or {}
+            default = {"server": active} if active in servers else {}
+            if active_record.get("token"):
+                default["token"] = active_record["token"]
+            model = (active_record.get("selections") or {}).get("llm")
+            if model:
+                default["model"] = model
             for record in servers.values():
                 record.pop("token", None)
                 record.pop("selections", None)
-            return {"version": 2, "applications": {}, "servers": servers}
+            return {
+                "version": 2,
+                "default": default,
+                "applications": {},
+                "servers": servers,
+            }
         if (
             state.get("version") != 2
             or not isinstance(state.get("applications"), dict)
             or not isinstance(state.get("servers"), dict)
         ):
             raise StateError(f"Unsupported nemor-link state at {self.path}")
+        state.setdefault("default", {})
         return state
 
     def save(self, state):
