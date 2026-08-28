@@ -48,23 +48,22 @@ class ConnectionTests(unittest.TestCase):
             resolved_service("llm", store=self.store, command="commit")
 
     def test_trusted_server_needs_model(self):
-        trust_server(self.observation(), store=self.store)
+        trust_server(self.observation(), store=self.store, command="commit")
         with self.assertRaisesRegex(ModelNotSelected, r"commit --list-models"):
             resolved_service("llm", store=self.store, command="commit")
 
     def test_authentication_is_requested_before_creating_client(self):
         observation = self.observation()
         observation["capabilities"]["auth_required"] = True
-        trust_server(observation, store=self.store)
+        trust_server(observation, store=self.store, command="commit")
         with self.assertRaisesRegex(AuthenticationRequired, r"commit --set-token"):
             resolved_service("llm", store=self.store, command="commit")
 
     def test_resolved_service_contains_pin_token_and_model(self):
-        trust_server(self.observation(), store=self.store)
+        trust_server(self.observation(), store=self.store, command="commit")
         state = self.store.load()
-        key = state["active_server"]
-        state["servers"][key]["token"] = "secret"
-        state["servers"][key]["selections"]["llm"] = "very-good-model"
+        state["applications"]["commit"]["token"] = "secret"
+        state["applications"]["commit"]["model"] = "very-good-model"
         self.store.save(state)
 
         service = resolved_service("llm", store=self.store, command="commit")
@@ -89,14 +88,65 @@ class ConnectionTests(unittest.TestCase):
             )
         self.assertTrue(handled)
         self.assertIn("This server has not been seen before.", output)
-        self.assertEqual(self.store.load()["active_server"], server_key(self.observation()))
+        self.assertEqual(
+            self.store.load()["applications"]["commit"]["server"],
+            server_key(self.observation()),
+        )
 
     def test_set_model_validates_server_list(self):
-        trust_server(self.observation(), store=self.store)
+        trust_server(self.observation(), store=self.store, command="commit")
         with patch("nemor_link.connection.list_models", return_value=[{"id": "good"}]):
             set_model("good", store=self.store, command="commit")
-        key = self.store.load()["active_server"]
-        self.assertEqual(self.store.load()["servers"][key]["selections"]["llm"], "good")
+        self.assertEqual(self.store.load()["applications"]["commit"]["model"], "good")
+
+    def test_applications_have_independent_connections(self):
+        trust_server(self.observation(), store=self.store, command="commit")
+
+        with self.assertRaisesRegex(NotConnected, r"ask --connect"):
+            resolved_service("llm", store=self.store, command="ask")
+
+    def test_applications_have_independent_tokens_and_models(self):
+        observation = self.observation()
+        trust_server(observation, store=self.store, command="commit")
+        trust_server(observation, store=self.store, command="ask")
+        state = self.store.load()
+        state["applications"]["commit"].update(token="commit-token", model="commit-model")
+        state["applications"]["ask"].update(token="ask-token", model="ask-model")
+        self.store.save(state)
+
+        commit_backend = resolved_service(
+            "llm", store=self.store, command="commit"
+        )["backends"][0]
+        ask_backend = resolved_service(
+            "llm", store=self.store, command="ask"
+        )["backends"][0]
+
+        self.assertEqual(commit_backend["model"], "commit-model")
+        self.assertEqual(commit_backend["_host"], {"token": "commit-token"})
+        self.assertEqual(ask_backend["model"], "ask-model")
+        self.assertEqual(ask_backend["_host"], {"token": "ask-token"})
+        server = self.store.load()["servers"][server_key(observation)]
+        self.assertNotIn("token", server)
+        self.assertNotIn("model", server)
+
+    def test_switching_server_clears_application_token_and_model(self):
+        first = self.observation()
+        trust_server(first, store=self.store, command="commit")
+        state = self.store.load()
+        state["applications"]["commit"].update(token="secret", model="model")
+        self.store.save(state)
+        second = {
+            **first,
+            "endpoint": "https://192.168.0.91:8090",
+            "fingerprint": "cd:" * 31 + "cd",
+        }
+
+        trust_server(second, store=self.store, command="commit")
+
+        self.assertEqual(
+            self.store.load()["applications"]["commit"],
+            {"server": server_key(second)},
+        )
 
     def test_tcp_timeout_is_distinguished_from_tls_timeout(self):
         with patch("nemor_link.connection.socket.create_connection", side_effect=socket.timeout):

@@ -1,6 +1,6 @@
 # nemor-link
 
-Trusted, shared connection state for Nemor command-line tools.
+Trusted, application-scoped connection state for Nemor command-line tools.
 
 No configuration file needs to be written by hand. Any integrated utility can
 perform onboarding:
@@ -19,24 +19,26 @@ fingerprint. Plain HTTP is available only when explicitly requested, for
 example `http://127.0.0.1:8090`, and produces a warning because it has no server
 identity.
 
-The selected server, fingerprint, token, and model are stored atomically in a
-machine-managed state file under the platform configuration directory. The
-file is created with user-only permissions where supported.
+Each application has its own selected server, token, and model. Server identity
+and capability metadata are shared, but `nemor-link` has no global preferred
+host, credentials, or model. State is stored atomically in a machine-managed
+file under the platform configuration directory. The file is created with
+user-only permissions where supported.
 
 The standalone commands provide the same operations:
 
 ```console
-nemor-link connect 192.168.0.90
-nemor-link status
-nemor-link list-models
-nemor-link set-model very-good-model
-nemor-link set-token TOKEN
-nemor-link disconnect
+nemor-link --app commit connect 192.168.0.90
+nemor-link --app commit status
+nemor-link --app commit list-models
+nemor-link --app commit set-model very-good-model
+nemor-link --app commit set-token TOKEN
+nemor-link --app commit disconnect
 ```
 
 ## Python API
 
-The default constructors use shared connection state:
+Pass an application name to use its connection state:
 
 ```python
 import nemor_link as nl

@@ -91,42 +91,43 @@ def cmd_set_default(args):
 
 
 def cmd_connect(args):
-    connect_interactive(args.address)
+    connect_interactive(args.address, command=args.app)
 
 
-def cmd_status(_args):
-    _key, record = active_record()
+def cmd_status(args):
+    _key, record, application = active_record(command=args.app)
     print("Server: " + record["endpoints"][-1])
-    print("LLM model: " + ((record.get("selections") or {}).get("llm") or "not selected"))
+    print("LLM model: " + (application.get("model") or "not selected"))
 
 
-def cmd_disconnect(_args):
-    disconnect()
+def cmd_disconnect(args):
+    disconnect(command=args.app)
     print("Disconnected.")
 
 
-def cmd_list_models(_args):
-    _key, record = active_record()
-    selected = (record.get("selections") or {}).get("llm")
-    for item in list_models():
+def cmd_list_models(args):
+    _key, _record, application = active_record(command=args.app)
+    selected = application.get("model")
+    for item in list_models(command=args.app):
         marker = "*" if item.get("id") == selected else " "
         status = f" ({item['status']})" if item.get("status") else ""
         print(f"{marker} {item.get('id')}{status}")
 
 
 def cmd_set_model(args):
-    set_model(args.model)
+    set_model(args.model, command=args.app)
     print(f"Selected LLM model: {args.model}")
 
 
 def cmd_set_token(args):
-    set_token(args.token)
+    set_token(args.token, command=args.app)
     print("Server token updated.")
 
 
 def build_parser():
     p = argparse.ArgumentParser(prog="nemor-link")
     p.add_argument("-c", "--config", help="Path to config (default: ~/.config/llm.json)")
+    p.add_argument("--app", help="Application whose connection is being managed")
     sub = p.add_subparsers(dest="command", required=True)
 
     s_connect = sub.add_parser("connect", help="Trust and use a Nemor server")

@@ -1,4 +1,4 @@
-"""Connection discovery, TOFU trust, and shared CLI actions."""
+"""Connection discovery, TOFU trust, and application-scoped CLI actions."""
 
 import hashlib
 import socket
@@ -16,7 +16,7 @@ DEFAULT_PORT = 8090
 
 
 class LinkError(ConfigError):
-    """An actionable problem with the shared nemor-link connection."""
+    """An actionable problem with a nemor-link connection."""
 
 
 class NotConnected(LinkError):
@@ -88,7 +88,7 @@ def server_key(observation):
     return "http:" + hashlib.sha256(observation["endpoint"].encode("utf-8")).hexdigest()
 
 
-def trust_server(observation, store=None):
+def trust_server(observation, store=None, command=None):
     store = store or StateStore()
     state = store.load()
     key = server_key(observation)
@@ -104,13 +104,14 @@ def trust_server(observation, store=None):
     record = state["servers"].setdefault(key, {
         "fingerprint": observation.get("fingerprint"),
         "endpoints": [],
-        "token": None,
-        "selections": {},
     })
     if endpoint not in record["endpoints"]:
         record["endpoints"].append(endpoint)
     record["capabilities"] = observation.get("capabilities") or {}
-    state["active_server"] = key
+    if command:
+        application = state["applications"].get(command)
+        if not application or application.get("server") != key:
+            state["applications"][command] = {"server": key}
     store.save(state)
     return record
 
@@ -118,43 +119,46 @@ def trust_server(observation, store=None):
 def active_record(store=None, command=None):
     store = store or StateStore()
     state = store.load()
-    key = state.get("active_server")
+    if not command:
+        raise LinkError("application name is required")
+    application = state["applications"].get(command) or {}
+    key = application.get("server")
     record = state.get("servers", {}).get(key)
     if not record or not record.get("endpoints"):
-        hint = f"Run: {command} --connect <address>" if command else "Connect with nemor-link connect <address>"
+        hint = f"Run: {command} --connect <address>"
         raise NotConnected(f"Nemor server is not connected.\n{hint}")
-    return key, record
+    return key, record, application
 
 
 def resolved_service(kind, store=None, command=None):
-    _key, record = active_record(store=store, command=command)
+    _key, record, application = active_record(store=store, command=command)
     capabilities = record.get("capabilities") or {}
-    if capabilities.get("auth_required") and not record.get("token"):
-        hint = f"Run: {command} --set-token <token>" if command else "Run: nemor-link set-token <token>"
+    if capabilities.get("auth_required") and not application.get("token"):
+        hint = f"Run: {command} --set-token <token>"
         raise AuthenticationRequired(f"Server requires authentication.\n{hint}")
     endpoint = record["endpoints"][-1]
     backend = {"url": endpoint}
     if record.get("fingerprint"):
         backend["tls_fingerprint"] = record["fingerprint"]
-    if record.get("token"):
-        backend["_host"] = {"token": record["token"]}
+    if application.get("token"):
+        backend["_host"] = {"token": application["token"]}
     if kind == "llm":
-        model = (record.get("selections") or {}).get("llm")
+        model = application.get("model")
         if not model:
-            hint = f"Run: {command} --list-models" if command else "Run: nemor-link list-models"
+            hint = f"Run: {command} --list-models"
             raise ModelNotSelected(f"No LLM model selected.\n{hint}")
         backend["model"] = model
     return {"name": endpoint, "kind": kind, "backends": [backend]}
 
 
 def list_models(store=None, timeout=10.0, command=None):
-    _key, record = active_record(store=store, command=command)
+    _key, record, application = active_record(store=store, command=command)
     backend = _backend_from_record(record)
-    headers = _auth_headers(record)
+    headers = _auth_headers(application)
     try:
         payload = _get_json(backend["url"] + "/v1/models", backend, headers, timeout)
     except AuthenticationRequired:
-        hint = f"Run: {command} --set-token <token>" if command else "Run: nemor-link set-token <token>"
+        hint = f"Run: {command} --set-token <token>"
         raise AuthenticationRequired(f"Server requires authentication.\n{hint}")
     return payload.get("data") or []
 
@@ -165,29 +169,32 @@ def set_model(model, store=None, command=None):
     names = [item.get("id") for item in models]
     if model not in names:
         raise LinkError(f"Unknown model {model!r}. Available: {', '.join(names) or '(none)'}")
-    key, _record = active_record(store=store, command=command)
+    _key, _record, _application = active_record(store=store, command=command)
     state = store.load()
-    state["servers"][key].setdefault("selections", {})["llm"] = model
+    state["applications"][command]["model"] = model
     store.save(state)
 
 
 def set_token(token, store=None, command=None):
     store = store or StateStore()
-    key, _record = active_record(store=store, command=command)
+    _key, _record, _application = active_record(store=store, command=command)
     state = store.load()
-    state["servers"][key]["token"] = token.strip() or None
+    state["applications"][command]["token"] = token.strip() or None
     store.save(state)
 
 
-def disconnect(store=None):
+def disconnect(store=None, command=None):
     store = store or StateStore()
+    active_record(store=store, command=command)
     state = store.load()
-    state["active_server"] = None
+    state["applications"].pop(command, None)
     store.save(state)
 
 
-def connect_interactive(address, store=None, input_fn=input, output_fn=print):
+def connect_interactive(address, store=None, command=None, input_fn=input, output_fn=print):
     store = store or StateStore()
+    if not command:
+        raise LinkError("application name is required")
     observation = inspect_server(address)
     state = store.load()
     key = server_key(observation)
@@ -203,7 +210,7 @@ def connect_interactive(address, store=None, input_fn=input, output_fn=print):
         if answer not in ("y", "yes"):
             output_fn("Not connected.")
             return False
-    trust_server(observation, store=store)
+    trust_server(observation, store=store, command=command)
     output_fn(f"Connected to {observation['endpoint']}")
     return True
 
@@ -227,23 +234,24 @@ def handle_connection_action(args, command, store=None, input_fn=input, output_f
     store = store or StateStore()
     if args.connect:
         connect_interactive(
-            args.connect, store=store, input_fn=input_fn, output_fn=output_fn,
+            args.connect, store=store, command=command,
+            input_fn=input_fn, output_fn=output_fn,
         )
         return True
     if args.disconnect:
-        disconnect(store=store)
+        disconnect(store=store, command=command)
         output_fn("Disconnected.")
         return True
     if args.link_status:
-        _key, record = active_record(store=store, command=command)
+        _key, record, application = active_record(store=store, command=command)
         output_fn("Server: " + record["endpoints"][-1])
-        output_fn("LLM model: " + ((record.get("selections") or {}).get("llm") or "not selected"))
+        output_fn("LLM model: " + (application.get("model") or "not selected"))
         return True
     if args.list_models:
         selected = None
         try:
-            _key, record = active_record(store=store, command=command)
-            selected = (record.get("selections") or {}).get("llm")
+            _key, _record, application = active_record(store=store, command=command)
+            selected = application.get("model")
         except NotConnected:
             raise
         for item in list_models(store=store, command=command):
@@ -270,8 +278,8 @@ def _backend_from_record(record):
     return backend
 
 
-def _auth_headers(record):
-    token = record.get("token")
+def _auth_headers(application):
+    token = application.get("token")
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 

@@ -26,13 +26,23 @@ class StateStore:
 
     def load(self):
         if not os.path.isfile(self.path):
-            return {"version": 1, "active_server": None, "servers": {}}
+            return {"version": 2, "applications": {}, "servers": {}}
         try:
             with open(self.path, "r", encoding="utf-8") as stream:
                 state = json.load(stream)
         except (OSError, json.JSONDecodeError) as exc:
             raise StateError(f"Cannot read nemor-link state at {self.path}: {exc}") from exc
-        if state.get("version") != 1 or not isinstance(state.get("servers"), dict):
+        if state.get("version") == 1 and isinstance(state.get("servers"), dict):
+            servers = state["servers"]
+            for record in servers.values():
+                record.pop("token", None)
+                record.pop("selections", None)
+            return {"version": 2, "applications": {}, "servers": servers}
+        if (
+            state.get("version") != 2
+            or not isinstance(state.get("applications"), dict)
+            or not isinstance(state.get("servers"), dict)
+        ):
             raise StateError(f"Unsupported nemor-link state at {self.path}")
         return state
 

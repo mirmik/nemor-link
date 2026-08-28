@@ -2,16 +2,16 @@
 
 Quick start:
     import nemor_link as nl
-    llm = nl.llm()                     # default LLM profile
+    llm = nl.llm(tool="my-app")
     print(llm.chat([{"role": "user", "content": "hi"}])["choices"][0]["message"]["content"])
 
     for token in llm.chat_stream([{"role": "user", "content": "hi"}]):
         print(token, end="", flush=True)
 
-    stt = nl.stt()
+    stt = nl.stt(tool="my-app")
     print(stt.transcribe(open("audio.raw", "rb").read()))
 
-    tts = nl.tts()
+    tts = nl.tts(tool="my-app")
     audio = tts.synthesize("hello")
 """
 
