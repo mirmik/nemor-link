@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import requests
 
-from nemor_link.cli import build_parser
-from nemor_link.runner import OpenAIRelay, run_command
+from inference_link.cli import build_parser, deprecated_main
+from inference_link.runner import OpenAIRelay, run_command
 
 
 class UpstreamHandler(BaseHTTPRequestHandler):
@@ -88,3 +88,11 @@ def test_run_cli_preserves_child_arguments():
 
     assert args.app == "qwen"
     assert args.command_args == ["--", "qwen", "--approval-mode", "auto-edit"]
+
+
+def test_deprecated_cli_warns_and_delegates(capsys):
+    with patch("inference_link.cli.main") as main:
+        deprecated_main()
+
+    main.assert_called_once_with()
+    assert "renamed to 'inference-link'" in capsys.readouterr().err

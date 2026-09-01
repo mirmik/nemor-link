@@ -1,10 +1,10 @@
-"""Persistent, machine-managed nemor-link connection state."""
+"""Persistent, machine-managed inference-link connection state."""
 
 import json
 import os
 import tempfile
 
-from nemor_link.config import ConfigError
+from inference_link.config import ConfigError
 
 
 def default_state_path():
@@ -12,26 +12,36 @@ def default_state_path():
         root = os.environ["APPDATA"]
     else:
         root = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-    return os.path.join(root, "nemor-link", "state.json")
+    return os.path.join(root, "inference-link", "state.json")
 
 
 STATE_PATH = default_state_path()
+LEGACY_STATE_PATH = os.path.join(os.path.dirname(os.path.dirname(STATE_PATH)), "nemor-link", "state.json")
+_UNSET = object()
 
 
 class StateStore:
     """Load and atomically update state that users should not edit by hand."""
 
-    def __init__(self, path=None):
+    def __init__(self, path=None, legacy_path=_UNSET):
         self.path = path or STATE_PATH
+        if legacy_path is _UNSET:
+            self.legacy_path = LEGACY_STATE_PATH if path is None else None
+        else:
+            self.legacy_path = legacy_path
 
     def load(self):
-        if not os.path.isfile(self.path):
-            return {"version": 2, "default": {}, "applications": {}, "servers": {}}
+        source_path = self.path
+        if not os.path.isfile(source_path):
+            if self.legacy_path and os.path.isfile(self.legacy_path):
+                source_path = self.legacy_path
+            else:
+                return {"version": 2, "default": {}, "applications": {}, "servers": {}}
         try:
-            with open(self.path, "r", encoding="utf-8") as stream:
+            with open(source_path, "r", encoding="utf-8") as stream:
                 state = json.load(stream)
         except (OSError, json.JSONDecodeError) as exc:
-            raise StateError(f"Cannot read nemor-link state at {self.path}: {exc}") from exc
+            raise StateError(f"Cannot read inference-link state at {source_path}: {exc}") from exc
         if state.get("version") == 1 and isinstance(state.get("servers"), dict):
             servers = state["servers"]
             active = state.get("active_server")
@@ -56,7 +66,7 @@ class StateStore:
             or not isinstance(state.get("applications"), dict)
             or not isinstance(state.get("servers"), dict)
         ):
-            raise StateError(f"Unsupported nemor-link state at {self.path}")
+            raise StateError(f"Unsupported inference-link state at {source_path}")
         state.setdefault("default", {})
         return state
 

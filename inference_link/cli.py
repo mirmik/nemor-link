@@ -1,12 +1,12 @@
-"""CLI — `nemor-link <command>`."""
+"""CLI — `inference-link <command>`."""
 
 import argparse
 import json
 import sys
 
-from nemor_link import config as _config
-from nemor_link import llm as _llm, probe as _probe
-from nemor_link.connection import (
+from inference_link import config as _config
+from inference_link import llm as _llm, probe as _probe
+from inference_link.connection import (
     LinkError,
     active_record,
     connect_interactive,
@@ -16,7 +16,7 @@ from nemor_link.connection import (
     set_model,
     set_token,
 )
-from nemor_link.runner import run_command
+from inference_link.runner import run_command
 
 
 def cmd_list(args):
@@ -81,7 +81,7 @@ def cmd_set_default(args):
             file=sys.stderr,
         )
         sys.exit(1)
-    path = args.config or _config.CONFIG_PATH
+    path = cfg["_path"]
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
     raw.setdefault("defaults", {})[args.kind] = args.name
@@ -132,12 +132,16 @@ def cmd_run(args):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="nemor-link")
-    p.add_argument("-c", "--config", help="Path to config (default: ~/.config/llm.json)")
+    p = argparse.ArgumentParser(prog="inference-link")
+    p.add_argument(
+        "-c",
+        "--config",
+        help="Path to profiles config (default: platform config/inference-link/profiles.json)",
+    )
     p.add_argument("--app", help="Application whose connection is being managed")
     sub = p.add_subparsers(dest="command", required=True)
 
-    s_connect = sub.add_parser("connect", help="Trust and use a Nemor server")
+    s_connect = sub.add_parser("connect", help="Trust and use an inference server")
     s_connect.add_argument("address")
     s_connect.set_defaults(func=cmd_connect)
 
@@ -198,6 +202,15 @@ def main():
     except (_config.ConfigError, LinkError) as e:
         print(str(e), file=sys.stderr)
         sys.exit(2)
+
+
+def deprecated_main():
+    print(
+        "warning: 'nemor-link' was renamed to 'inference-link'; "
+        "the compatibility command is deprecated",
+        file=sys.stderr,
+    )
+    main()
 
 
 if __name__ == "__main__":

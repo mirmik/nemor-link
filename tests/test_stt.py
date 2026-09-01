@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from nemor_link.stt import STTClient
+from inference_link.stt import STTClient
 
 
 def make_client(response, runtime=None):
@@ -60,7 +60,7 @@ class STTRuntimeTests(unittest.TestCase):
         self.assertEqual(headers["Authorization"], "Bearer secret")
         self.assertEqual(headers["X-LLM-Proxy-Host-ID"], "desktop")
 
-    @patch("nemor_link.pool.requests.Session")
+    @patch("inference_link.pool.requests.Session")
     def test_probe_targets_stt_health_with_runtime(self, session_class):
         response = Mock(status_code=200)
         session_class.return_value.get.return_value = response

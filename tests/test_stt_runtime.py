@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from nemor_link.config import ConfigError, load
-from nemor_link.stt import STTClient
+from inference_link.config import ConfigError, load
+from inference_link.stt import STTClient
 
 
 class STTRuntimeTests(unittest.TestCase):
@@ -44,7 +44,7 @@ class STTRuntimeTests(unittest.TestCase):
         session = Mock()
         session.get.return_value = response
         try:
-            with patch("nemor_link.pool.requests.Session", return_value=session):
+            with patch("inference_link.pool.requests.Session", return_value=session):
                 ok, _latency = client.pool.probe("https://proxy.example/stt")
         finally:
             client.close()

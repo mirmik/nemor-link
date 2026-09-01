@@ -1,6 +1,6 @@
 """Common base for service clients."""
 
-from nemor_link.pool import ServicePool, backend_headers
+from inference_link.pool import ServicePool, backend_headers
 
 
 class ServiceClient:

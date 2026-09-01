@@ -1,4 +1,4 @@
-"""Run OpenAI-compatible applications through a trusted Nemor connection."""
+"""Run OpenAI-compatible applications through a trusted inference connection."""
 
 import json
 import os
@@ -9,8 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import requests
 
-from nemor_link.connection import LinkError
-from nemor_link.tls import prepare_session_for_backend
+from inference_link.connection import LinkError
+from inference_link.tls import prepare_session_for_backend
 
 
 _HOP_BY_HOP_HEADERS = {
@@ -147,7 +147,7 @@ class _RelayHandler(BaseHTTPRequestHandler):
                             self.wfile.flush()
         except (requests.RequestException, OSError) as exc:
             if not response_started:
-                self._send_json(502, {"error": f"Nemor upstream failed: {exc}"})
+                self._send_json(502, {"error": f"Inference upstream failed: {exc}"})
         finally:
             self.close_connection = True
             session.close()

@@ -1,12 +1,21 @@
-"""Config loader for ~/.config/llm.json."""
+"""Profile configuration loader with legacy path compatibility."""
 
 import json
 import os
 
-from nemor_link.tls import normalize_fingerprint
+from inference_link.tls import normalize_fingerprint
 
 
-CONFIG_PATH = os.path.expanduser("~/.config/llm.json")
+def default_config_path():
+    if os.name == "nt" and os.environ.get("APPDATA"):
+        root = os.environ["APPDATA"]
+    else:
+        root = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    return os.path.join(root, "inference-link", "profiles.json")
+
+
+CONFIG_PATH = default_config_path()
+LEGACY_CONFIG_PATH = os.path.expanduser("~/.config/llm.json")
 VALID_KINDS = {"llm", "stt", "tts"}
 
 
@@ -21,7 +30,10 @@ def load(path=None):
     top-level `default`) is detected and rejected with a helpful message —
     migration is manual per user request.
     """
-    path = path or CONFIG_PATH
+    if path is None:
+        path = CONFIG_PATH
+        if not os.path.isfile(path) and os.path.isfile(LEGACY_CONFIG_PATH):
+            path = LEGACY_CONFIG_PATH
     if not os.path.isfile(path):
         raise ConfigError(
             f"Config not found at {path}.\n"

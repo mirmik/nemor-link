@@ -7,7 +7,7 @@ import socket
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from nemor_link.connection import (
+from inference_link.connection import (
     AuthenticationRequired,
     ModelNotSelected,
     NotConnected,
@@ -20,7 +20,7 @@ from nemor_link.connection import (
     trust_server,
     _certificate_fingerprint,
 )
-from nemor_link.state import StateStore
+from inference_link.state import StateStore
 
 
 class ConnectionTests(unittest.TestCase):
@@ -77,7 +77,7 @@ class ConnectionTests(unittest.TestCase):
     def test_connect_prompts_once_then_recognizes_fingerprint(self):
         args = _args(connect="192.168.0.90")
         output = []
-        with patch("nemor_link.connection.inspect_server", return_value=self.observation()):
+        with patch("inference_link.connection.inspect_server", return_value=self.observation()):
             handled = handle_connection_action(
                 args, "commit", store=self.store,
                 input_fn=lambda _prompt: "y", output_fn=output.append,
@@ -96,7 +96,7 @@ class ConnectionTests(unittest.TestCase):
 
     def test_set_model_validates_server_list(self):
         trust_server(self.observation(), store=self.store, command="commit")
-        with patch("nemor_link.connection.list_models", return_value=[{"id": "good"}]):
+        with patch("inference_link.connection.list_models", return_value=[{"id": "good"}]):
             set_model("good", store=self.store, command="commit")
         self.assertEqual(self.store.load()["applications"]["commit"]["model"], "good")
 
@@ -221,7 +221,7 @@ class ConnectionTests(unittest.TestCase):
         )
 
     def test_tcp_timeout_is_distinguished_from_tls_timeout(self):
-        with patch("nemor_link.connection.socket.create_connection", side_effect=socket.timeout):
+        with patch("inference_link.connection.socket.create_connection", side_effect=socket.timeout):
             with self.assertRaisesRegex(Exception, r"TCP connection .* timed out"):
                 _certificate_fingerprint("192.168.0.61", 8090, 1)
 

@@ -1,73 +1,180 @@
-# nemor-link
+# inference-link
 
-Trusted, application-scoped connection state for Nemor command-line tools.
+Trusted, application-scoped connections to self-hosted AI services.
 
-No configuration file needs to be written by hand. Any integrated utility can
-perform onboarding:
+`inference-link` is a small client-side connection layer for tools that share a
+private LLM, speech-to-text, or text-to-speech server. It lets a user verify a
+server once, keeps tokens and model choices separate between applications, and
+can expose the trusted connection as a temporary OpenAI-compatible localhost
+endpoint.
 
-```console
-commit --connect 192.168.0.90
-commit --list-models
-commit --set-model very-good-model
-commit
-```
+The project does not run models and is not a provider-neutral AI SDK. It owns
+connection onboarding, server identity, local state, and lightweight sync
+clients for a documented HTTP contract.
 
-A bare address means HTTPS on the default `llm-proxy` API port, 8090. On first
-contact, the utility prints the server certificate's SHA-256 fingerprint and
-asks the user to verify and trust it. Later requests are pinned to that
-fingerprint. Plain HTTP is available only when explicitly requested, for
-example `http://127.0.0.1:8090`, and produces a warning because it has no server
-identity.
-
-`nemor-link` provides a default server, token, and model. Applications use that
-default until they override individual values through their own connection
-flags. Connecting an application to another server starts an independent scope
-and does not carry credentials to the new host. Server identity and capability
-metadata remain shared. State is stored atomically in a machine-managed file
-under the platform configuration directory.
-
-The standalone commands provide the same operations:
+## Install
 
 ```console
-nemor-link connect 192.168.0.90
-nemor-link set-token TOKEN
-nemor-link set-model very-good-model
-nemor-link status
-
-# Run any OpenAI-compatible application through the trusted connection
-nemor-link run -- qwen
-
-# Optional application override
-nemor-link --app commit set-model another-model
-nemor-link --app commit disconnect  # return to the default
+python -m pip install inference-link
 ```
 
-## Python API
+Python 3.9 or newer is required.
 
-Pass an application name to use its connection state:
+## Why use it?
+
+- **Trust on first use.** HTTPS servers may use a self-signed certificate. On
+  first contact, the user verifies its SHA-256 fingerprint; later connections
+  are pinned to that certificate.
+- **Application scopes.** Each integrating tool can inherit the default
+  connection or keep its own server, token, and model selection.
+- **No hand-written connection file.** Onboarding and model selection are
+  exposed as CLI actions that applications can embed.
+- **OpenAI-compatible bridge.** Existing programs can run through a temporary
+  authenticated relay on `127.0.0.1` without receiving the upstream token.
+- **Small synchronous clients.** Python callers can use built-in LLM, STT, and
+  TTS clients, including backend health checks and failover for profile-based
+  configurations.
+
+## Connect from the command line
+
+A bare address means HTTPS on port 8090:
+
+```console
+inference-link connect 192.168.0.90
+inference-link set-token TOKEN       # only when the server requires authentication
+inference-link list-models
+inference-link set-model my-model
+inference-link status
+```
+
+The first HTTPS connection prints the server certificate fingerprint and asks
+for confirmation. Verify that fingerprint through a separate trusted channel
+before accepting it.
+
+Plain HTTP must be requested explicitly:
+
+```console
+inference-link connect http://127.0.0.1:8090
+```
+
+HTTP has no authenticated server identity, so the command displays a warning.
+
+## Run an OpenAI-compatible application
+
+`run` starts a relay on a random loopback port and exports `OPENAI_API_KEY`,
+`OPENAI_BASE_URL`, and `OPENAI_MODEL` to the child process:
+
+```console
+inference-link run -- my-openai-cli
+inference-link --app code-review run -- my-openai-cli --model-from-env
+```
+
+The relay accepts only its generated bearer token, forwards requests to the
+trusted upstream connection, and stops when the child exits. The child sees
+the relay token, not the upstream token.
+
+## Embed connection actions in another CLI
+
+Applications can expose the same onboarding flow under their own command:
 
 ```python
-import nemor_link as nl
+import argparse
+import inference_link as nl
 
-client = nl.llm(tool="commit")
-response = client.chat([{"role": "user", "content": "hello"}])
+parser = argparse.ArgumentParser()
+nl.add_connection_arguments(parser)
+args = parser.parse_args()
+
+if nl.handle_connection_action(args, command="my-tool"):
+    raise SystemExit(0)
+
+with nl.llm(tool="my-tool") as client:
+    response = client.chat([
+        {"role": "user", "content": "Hello"},
+    ])
+    print(response["choices"][0]["message"]["content"])
 ```
 
-Applications with an existing generated profile configuration, including
-`voice-input`, remain supported by passing `config=` or `name=` explicitly.
-Profiles are a compatibility API and are not part of the new end-user flow.
+The application inherits the default connection until the user connects that
+application to another server or changes one of its settings.
 
-## Run an application
+## Python clients
 
-`run` starts a temporary relay on `127.0.0.1`, exports `OPENAI_API_KEY`,
-`OPENAI_BASE_URL`, and `OPENAI_MODEL` to the child process, and forwards OpenAI
-API requests through the selected trusted connection. The upstream token and
-TLS fingerprint remain inside `nemor-link`.
+The connection-state API provides synchronous clients:
 
-```console
-nemor-link run -- qwen
-nemor-link --app qwen run -- qwen --approval-mode auto-edit
+```python
+import inference_link as nl
+
+with nl.llm(tool="my-tool") as client:
+    response = client.chat([{"role": "user", "content": "Hello"}])
+
+with nl.stt(tool="voice-input") as client:
+    transcript = client.transcribe(open("audio.raw", "rb").read())
+
+with nl.tts(tool="voice-output") as client:
+    audio = client.synthesize("Hello")
 ```
 
-The relay stops when the child exits, and `nemor-link` returns the child's exit
-code.
+Existing profile configurations remain available through the `name=` and
+`config=` arguments. Profiles can contain an ordered backend list and are the
+API to use when client-side health probing and failover are required.
+
+## Migrating from `nemor-link`
+
+The distribution, import package, and primary executable were renamed in
+version 0.2.0:
+
+```text
+nemor-link   -> inference-link
+nemor_link   -> inference_link
+```
+
+The old executable and Python import remain as deprecated compatibility
+aliases. Existing connection state under `~/.config/nemor-link/state.json` is
+read when the new state file does not exist; the next state-changing command
+writes to `~/.config/inference-link/state.json`. Legacy profile configuration
+at `~/.config/llm.json` is also used as a fallback for the new
+`~/.config/inference-link/profiles.json` path.
+
+## Server contract
+
+The current clients expect a server with these endpoints:
+
+- `GET /v1/capabilities` for public connection capabilities; older servers may
+  expose only `GET /health`;
+- `GET /v1/models` for model selection;
+- `POST /v1/chat/completions` for OpenAI-compatible chat completions;
+- `POST /stt` for raw audio transcription;
+- `POST /tts/generate` for speech synthesis.
+
+Authentication uses `Authorization: Bearer ...`. A server may additionally
+advertise whether authentication is required through its capabilities
+response. STT runtimes and prompts currently use dedicated request headers.
+
+## Security model
+
+- HTTPS identity uses trust on first use, not a public certificate authority.
+  The first fingerprint confirmation is therefore security-sensitive.
+- A changed certificate is rejected until the user explicitly reconnects and
+  trusts the new identity.
+- Connection state is stored atomically under the platform configuration
+  directory (`~/.config/inference-link/state.json` on typical Linux systems).
+  On POSIX, newly written state files use mode `0600` and their directory is
+  created with mode `0700`.
+- Tokens are stored in that state file; they are not placed in an operating
+  system keychain. Avoid passing long-lived tokens on a shared machine where
+  process arguments or shell history are observable.
+- Explicit HTTP connections provide transport but no server authentication or
+  confidentiality.
+
+## Current limitations
+
+- The API is synchronous.
+- The server HTTP contract above is currently required; arbitrary model
+  runtimes are not discovered or started by the client.
+- Non-ASCII STT `initial_prompt` values are not yet supported by the current
+  header transport.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

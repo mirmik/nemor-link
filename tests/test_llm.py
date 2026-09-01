@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import Mock
 
-from nemor_link.llm import LLMClient, LLMError
+from inference_link.llm import LLMClient, LLMError
 
 
 def make_client(response):

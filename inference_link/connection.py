@@ -7,16 +7,16 @@ from urllib.parse import urlsplit, urlunsplit
 
 import requests
 
-from nemor_link.config import ConfigError
-from nemor_link.state import StateStore
-from nemor_link.tls import normalize_fingerprint, prepare_session_for_backend
+from inference_link.config import ConfigError
+from inference_link.state import StateStore
+from inference_link.tls import normalize_fingerprint, prepare_session_for_backend
 
 
 DEFAULT_PORT = 8090
 
 
 class LinkError(ConfigError):
-    """An actionable problem with a nemor-link connection."""
+    """An actionable problem with an inference-link connection."""
 
 
 class NotConnected(LinkError):
@@ -134,7 +134,7 @@ def active_record(store=None, command=None):
     record = state.get("servers", {}).get(key)
     if not record or not record.get("endpoints"):
         hint = _action_hint(command, "--connect <address>")
-        raise NotConnected(f"Nemor server is not connected.\n{hint}")
+        raise NotConnected(f"Inference server is not connected.\n{hint}")
     return key, record, application
 
 
@@ -227,9 +227,11 @@ def connect_interactive(address, store=None, command=None, input_fn=input, outpu
 
 
 def add_connection_arguments(parser):
-    group = parser.add_argument_group("nemor-link connection")
+    group = parser.add_argument_group("inference-link connection")
     actions = group.add_mutually_exclusive_group()
-    actions.add_argument("--connect", metavar="ADDRESS", help="trust and use a Nemor server")
+    actions.add_argument(
+        "--connect", metavar="ADDRESS", help="trust and use an inference server"
+    )
     actions.add_argument("--disconnect", action="store_true", help="disconnect the active server")
     actions.add_argument(
         "--status", dest="link_status", action="store_true",
@@ -305,7 +307,7 @@ def _application_config(state, command):
 
 
 def _action_hint(command, action):
-    executable = command or "nemor-link"
+    executable = command or "inference-link"
     return f"Run: {executable} {action}"
 
 

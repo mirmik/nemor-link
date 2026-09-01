@@ -2,8 +2,8 @@
 
 import requests
 
-from nemor_link.base import ServiceClient
-from nemor_link.tls import prepare_session_for_backend
+from inference_link.base import ServiceClient
+from inference_link.tls import prepare_session_for_backend
 
 
 class TTSClient(ServiceClient):
