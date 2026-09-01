@@ -193,6 +193,26 @@ except InitialPromptEncodingError:
 - The server HTTP contract above is currently required; arbitrary model
   runtimes are not discovered or started by the client.
 
+## Releasing
+
+Build and validate distributions locally:
+
+```bash
+./tools/make.sh
+```
+
+The local publishing helper mirrors the release tools used by the other
+projects in this workspace and accepts either package index:
+
+```bash
+./tools/publish.sh testpypi
+./tools/publish.sh pypi
+```
+
+Normal releases use GitHub Trusted Publishing instead: manually dispatch the
+`Publish` workflow for TestPyPI, then push a version tag such as `v0.2.0` for
+PyPI. The workflow checks that the production tag matches the package version.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
