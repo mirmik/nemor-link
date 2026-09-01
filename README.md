@@ -201,17 +201,13 @@ Build and validate distributions locally:
 ./tools/make.sh
 ```
 
-The local publishing helper mirrors the release tools used by the other
-projects in this workspace and accepts either package index:
+The publishing helper mirrors the release tools used by the other projects in
+this workspace and accepts either package index:
 
 ```bash
 ./tools/publish.sh testpypi
 ./tools/publish.sh pypi
 ```
-
-Normal releases use GitHub Trusted Publishing instead: manually dispatch the
-`Publish` workflow for TestPyPI, then push a version tag such as `v0.2.0` for
-PyPI. The workflow checks that the production tag matches the package version.
 
 ## License
 

@@ -11,4 +11,4 @@ mkdir -p -- "${dist_dir}"
 
 cd -- "${repo_root}"
 uv build --out-dir "${dist_dir}"
-uvx twine check "${dist_dir}"/*
+python3 -m twine check "${dist_dir}"/*

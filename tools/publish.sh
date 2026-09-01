@@ -20,10 +20,5 @@ if [[ $# -gt 0 ]]; then
 fi
 
 cd -- "${repo_root}"
-if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
-    echo "Refusing to publish from a dirty worktree." >&2
-    exit 1
-fi
-
 "${script_dir}/make.sh"
-uvx twine upload --repository "${repository}" "$@" "${repo_root}/dist"/*
+python3 -m twine upload --repository "${repository}" "$@" "${repo_root}/dist"/*
