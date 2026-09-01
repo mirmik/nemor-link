@@ -17,7 +17,13 @@ Quick start:
 
 from inference_link.config import ConfigError, load, resolve_profile
 from inference_link.llm import LLMClient, LLMError
-from inference_link.stt import STTClient, STTError
+from inference_link.stt import (
+    InitialPromptEncodingError,
+    STTClient,
+    STTError,
+    decode_initial_prompt,
+    encode_initial_prompt_headers,
+)
 from inference_link.tts import TTSClient, TTSError
 from inference_link.pool import ServicePool
 from inference_link.connection import (
@@ -37,7 +43,8 @@ __all__ = [
     "LLMClient", "STTClient", "TTSClient", "ServicePool",
     "ConfigError", "LinkError", "NotConnected", "ModelNotSelected",
     "AuthenticationRequired", "ServerIdentityChanged", "ServerUnavailable",
-    "LLMError", "STTError", "TTSError",
+    "LLMError", "STTError", "TTSError", "InitialPromptEncodingError",
+    "encode_initial_prompt_headers", "decode_initial_prompt",
     "add_connection_arguments", "handle_connection_action",
     "load_config",
 ]

@@ -151,6 +151,26 @@ Authentication uses `Authorization: Bearer ...`. A server may additionally
 advertise whether authentication is required through its capabilities
 response. STT runtimes and prompts currently use dedicated request headers.
 
+STT `initial_prompt` uses the following version-1 header contract:
+
+- printable ASCII is sent unchanged as `X-Initial-Prompt` for compatibility;
+- other Unicode text is UTF-8 encoded, then standard-Base64 encoded, and sent
+  as `X-Initial-Prompt-Encoded: v1:<base64>`;
+- a request containing both prompt headers, an unknown version, invalid Base64,
+  or invalid UTF-8 is malformed and should receive a 400 response.
+
+Servers can use the bundled strict decoder before passing the result to their
+speech runtime:
+
+```python
+from inference_link import InitialPromptEncodingError, decode_initial_prompt
+
+try:
+    initial_prompt = decode_initial_prompt(request.headers)
+except InitialPromptEncodingError:
+    return {"error": "invalid initial prompt"}, 400
+```
+
 ## Security model
 
 - HTTPS identity uses trust on first use, not a public certificate authority.
@@ -172,8 +192,6 @@ response. STT runtimes and prompts currently use dedicated request headers.
 - The API is synchronous.
 - The server HTTP contract above is currently required; arbitrary model
   runtimes are not discovered or started by the client.
-- Non-ASCII STT `initial_prompt` values are not yet supported by the current
-  header transport.
 
 ## License
 
